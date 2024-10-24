@@ -10,13 +10,16 @@ import {
 } from "react-native";
 import { useCartStore } from "../store/cart-store";
 import { StatusBar } from "expo-status-bar";
+import { createOrder, createOrderItem } from "../api/api";
+import { create } from "zustand";
 
 type CartItemType = {
   id: number;
   title: string;
   price: number;
   quantity: number;
-  image: any;
+  heroImage: string;
+  maxQuantity: number;
 };
 
 type CartItemProps = {
@@ -34,7 +37,7 @@ const CartItem = ({
 }: CartItemProps) => {
   return (
     <View style={styles.cartItem}>
-      <Image source={item.image} style={styles.itemImage} />
+      <Image source={{ uri: item.heroImage }} style={styles.itemImage} />
 
       <View style={styles.itemDetails}>
         <Text style={styles.itemTitle}>{item.title}</Text>
@@ -67,11 +70,58 @@ const CartItem = ({
 };
 
 export default function Cart() {
-  const { items, removeItem, incrementItem, decrementItem, getTotalPrice } =
-    useCartStore();
+  const {
+    items,
+    removeItem,
+    incrementItem,
+    decrementItem,
+    getTotalPrice,
+    resetCart,
+  } = useCartStore();
 
-  const handleCheckout = () => {
-    Alert.alert("Proceeding to Checkout", `Total: $${getTotalPrice()}`);
+  const { mutateAsync: createSupabaseOrder } = createOrder();
+  const { mutateAsync: createSupabaseOrderItem } = createOrderItem();
+
+  const handleCheckout = async () => {
+    const totalPrice = parseFloat(getTotalPrice());
+    try {
+      await createSupabaseOrder(
+        { totalPrice },
+        {
+          onSuccess: (data) => {
+            createSupabaseOrderItem(
+              items.map((item) => ({
+                orderId: data.id,
+                productId: item.id,
+                quantity: item.quantity,
+              })),
+              {
+                onSuccess: () => {
+                  Alert.alert(
+                    "Order created successfully",
+                    "Thank you for your purchase!"
+                  );
+                  resetCart();
+                },
+                onError: (error) => {
+                  console.error(
+                    "Error while creating order items",
+                    error.message
+                  );
+                  Alert.alert(
+                    "Error while creating order items",
+                    error.message
+                  );
+                },
+              }
+            );
+          },
+        }
+      );
+    } catch (error: any) {
+      console.error("Error while creating order", error.message);
+      Alert.alert("Error while creating order", error.message);
+    }
   };
 
   return (
