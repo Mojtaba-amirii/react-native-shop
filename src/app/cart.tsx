@@ -11,7 +11,7 @@ import {
 import { useCartStore } from "../store/cart-store";
 import { StatusBar } from "expo-status-bar";
 import { createOrder, createOrderItem } from "../api/api";
-import { create } from "zustand";
+import { openStripeCheckout, setupStripePaymentSheet } from "../lib/stripe";
 
 type CartItemType = {
   id: number;
@@ -85,6 +85,15 @@ export default function Cart() {
   const handleCheckout = async () => {
     const totalPrice = parseFloat(getTotalPrice());
     try {
+      await setupStripePaymentSheet(Math.floor(totalPrice * 100));
+
+      const result = await openStripeCheckout();
+
+      if (!result) {
+        Alert.alert("Error while processing payment", "Payment failed");
+        return;
+      }
+
       await createSupabaseOrder(
         { totalPrice },
         {
