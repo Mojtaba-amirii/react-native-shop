@@ -1,24 +1,28 @@
 import { PropsWithChildren, useEffect, useRef, useState } from "react";
+import Constants from "expo-constants";
 
-import * as Notifications from "expo-notifications";
-import registerForPushNotificationsAsync from "../lib/notifications";
 import { supabase } from "../lib/supabase";
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: false,
-    shouldSetBadge: false,
-  }),
-});
+// Check if running in Expo Go
+const isExpoGo = Constants.executionEnvironment === "storeClient";
 
-const NotificationProvider = ({ children }: PropsWithChildren) => {
+// Mock implementation for Expo Go
+const mockNotificationProvider = ({ children }: PropsWithChildren) => {
+  useEffect(() => {
+    console.log(
+      "Notifications disabled in Expo Go. Use a development build for full functionality."
+    );
+  }, []);
+
+  return <>{children}</>;
+};
+
+// Real notification provider for development/production builds
+const RealNotificationProvider = ({ children }: PropsWithChildren) => {
   const [expoPushToken, setExpoPushToken] = useState("");
-  const [notification, setNotification] = useState<
-    Notifications.Notification | undefined
-  >(undefined);
-  const notificationListener = useRef<Notifications.Subscription>();
-  const responseListener = useRef<Notifications.Subscription>();
+  const [notification, setNotification] = useState<any | undefined>(undefined);
+  const notificationListener = useRef<any | null>(null);
+  const responseListener = useRef<any | null>(null);
 
   const saveUserPushNotificationToken = async (token: string) => {
     if (!token.length) return;
@@ -38,34 +42,62 @@ const NotificationProvider = ({ children }: PropsWithChildren) => {
   };
 
   useEffect(() => {
-    registerForPushNotificationsAsync()
-      .then((token) => {
+    // Import notifications dynamically
+    const setupNotifications = async () => {
+      try {
+        const Notifications = require("expo-notifications");
+        const registerForPushNotificationsAsync =
+          require("../lib/notifications").default;
+
+        // Set notification handler
+        Notifications.setNotificationHandler({
+          handleNotification: async () => ({
+            shouldShowAlert: true,
+            shouldPlaySound: false,
+            shouldSetBadge: false,
+            shouldShowBanner: true,
+            shouldShowList: true,
+          }),
+        });
+
+        const token = await registerForPushNotificationsAsync();
         setExpoPushToken(token ?? "");
-        saveUserPushNotificationToken(token ?? "");
-      })
-      .catch((error: any) => setExpoPushToken(`${error}`));
+        await saveUserPushNotificationToken(token ?? "");
 
-    notificationListener.current =
-      Notifications.addNotificationReceivedListener((notification) => {
-        setNotification(notification);
-      });
+        notificationListener.current =
+          Notifications.addNotificationReceivedListener((notification: any) => {
+            setNotification(notification);
+          });
 
-    responseListener.current =
-      Notifications.addNotificationResponseReceivedListener((response) => {
-        console.log(response);
-      });
+        responseListener.current =
+          Notifications.addNotificationResponseReceivedListener(
+            (response: any) => {
+              console.log(response);
+            }
+          );
+      } catch (error) {
+        console.log("Error setting up notifications:", error);
+      }
+    };
+
+    setupNotifications();
 
     return () => {
-      notificationListener.current &&
-        Notifications.removeNotificationSubscription(
-          notificationListener.current
-        );
-      responseListener.current &&
-        Notifications.removeNotificationSubscription(responseListener.current);
+      if (notificationListener.current) {
+        notificationListener.current.remove();
+      }
+      if (responseListener.current) {
+        responseListener.current.remove();
+      }
     };
   }, []);
 
   return <>{children}</>;
 };
+
+// Export the appropriate provider based on environment
+const NotificationProvider = isExpoGo
+  ? mockNotificationProvider
+  : RealNotificationProvider;
 
 export default NotificationProvider;

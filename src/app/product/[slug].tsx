@@ -8,7 +8,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { useToast } from "react-native-toast-notifications";
+import Toast from "react-native-root-toast";
 import { useState } from "react";
 
 import { useCartStore } from "../../store/cart-store";
@@ -16,7 +16,6 @@ import { getProduct } from "../../api/api";
 
 const ProductDetails = () => {
   const { slug } = useLocalSearchParams<{ slug: string }>();
-  const toast = useToast();
   const { data: product, error, isLoading } = getProduct(slug);
   const { items, addItem, incrementItem, decrementItem } = useCartStore();
   const cartItem = items.find((item) => item.id === product?.id);
@@ -32,10 +31,9 @@ const ProductDetails = () => {
       setQuantity((prev) => prev + 1);
       incrementItem(product.id);
     } else {
-      toast.show("You have reached the maximum quantity", {
-        type: "error",
-        placement: "top",
-        duration: 2000,
+      Toast.show("You have reached the maximum quantity", {
+        duration: Toast.durations.SHORT,
+        position: Toast.positions.TOP,
       });
     }
   };
@@ -54,10 +52,9 @@ const ProductDetails = () => {
       heroImage: product.heroImage,
       maxQuantity: product.maxQuantity,
     });
-    toast.show("Added to cart", {
-      type: "success",
-      placement: "top",
-      duration: 2000,
+    Toast.show("Added to cart", {
+      duration: Toast.durations.SHORT,
+      position: Toast.positions.TOP,
     });
   };
   const totalPrice = (product.price * quantity).toFixed(2);
